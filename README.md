@@ -1,39 +1,45 @@
 # Siege extra info
 
-Script that hooks into Overwolf's Rainbow Six Tracker and gives historical info and tells you which players are in a squad.
+Script that hooks into Overwolf's Rainbow Six Tracker and displays extra info:
+- players' total lifetime matches, top rank, ubisoft ID
+- which players have been previously seen playing together
+- round-by-round KDA and your team's picked operators 
+
 
 ```sh
 python script.py
 ```
 
-requires playwright
+requires playwright to get squad info
 
-```
-vexxxx (FurryPaws)                -  765 matches, SILVER II    014c2143-2684-486a-b4e2-70702f862513
-IceSunny6020                        -  168 matches, SILVER IV    e5c08470-d685-4bdd-af3f-987f7b23a517
-AlphaHidra7                         -  159 matches, BRONZE V     472a617d-aea8-4c9e-b2bc-2eb069b5eb67
-DEEP_SILVER_69                      -  293 matches, BRONZE II    2d1d376c-6762-4452-ada7-a60d51b44b85
-Mr.CaLmmm                           - 1033 matches, SILVER V     1d1e23ba-c0aa-4a74-91ba-daa4816783ef
-https.ssss (Noobyara)               -  204 matches, BRONZE III   e75bf789-b71f-4004-a30d-48b8032c528a
-mattia_999                          -  670 matches, GOLD IV      d69dd30a-e480-43cf-b64a-8fbf079966e7
-AsianRamen_010                      -  169 matches, SILVER V     127f7e66-4fa4-45d3-8f24-b879dd948099
-SoyWolf8                            -   89 matches, COPPER I     69b3736e-bf1b-446b-bfe2-a5800964d2bb
-Slide620                            -  699 matches, SILVER V     8c946c42-3f22-4fdc-abcc-9171b676e898
+```2025-06-02 21:21:57,065
+== Players ==
+Maxim_Marmelado                     -  332 matches, BRONZE IV    4a76ff18-a197-4cee-aa77-1b21b729ce73
+AristocratFlowd                     -  260 matches, BRONZE IV    7c7d85b9-2176-4e58-b808-3e23cde848f9
+Agafolk                             -  664 matches, BRONZE I     b9caa58a-c98d-49fb-9812-f2dac2d3c5df
+ashleney (FurryPaws)                -  761 matches, SILVER II    014c2143-2684-486a-b4e2-70702f862513
+Y0niZer0                            -  414 matches, SILVER V     34bcc877-4c7d-4908-b65a-f63b99287393
+tfhalo5                             -  853 matches, SILVER II    a574f5da-85c6-4817-a402-f00e0b7f3833
+ievosas                             -  144 matches, BRONZE V     1d08726c-4d63-42f3-9a1f-b083049bc703
+Jus0599                             -  873 matches, SILVER IV    d302f585-5a3c-4797-8639-1d610d7f922c
+amybulls                            -  165 matches, COPPER V     e62a4869-2db0-4695-b78f-77a3c80fbe6e
+Binnils                             -  771 matches, COPPER V     cbf0ea80-7302-451f-8c57-25824840a477
 
 == Squads ==
-- mattia_999, AsianRamen_010, IceSunny6020
-- AlphaHidra7, SoyWolf8
-- Noobyara, DEEP_SILVER_69
+- Maxim_Marmelado, Agafolk, AristocratFlowd
+- amybulls, Binnils
 
 == Round history ==
-AlphaHidra7      |           0  0  0 |           1  1  1 |           3  1  1 |           4  1  1 |           6  2  2 |           8  2  3
-AsianRamen_010   | Osa       0  0  0 | Blitz     1  1  1 | Nomad     1  2  1 | Doc       1  3  1 | Clash     1  4  1 | Clash     1  5  2
-DEEP_SILVER_69   |           0  0  0 |           0  1  1 |           1  1  1 |           2  1  2 |           2  2  2 |           2  3  2
-FurryPaws3       | Ace       0  0  0 | Ace       2  0  2 | Thatcher  2  1  2 | Bandit    2  2  2 | Kaid      2  3  3 | Kaid      2  4  3
-IceSunny6020     | Hibana    0  0  0 | Deimos    0  1  1 | Amaru     0  2  1 | Azami     0  3  1 | Lesion    2  4  1 | Lesion    2  5  2
-Mr.CaLmmm        |           0  0  0 |           0  1  0 |           1  2  0 |           1  2  2 |           2  2  2 |           3  2  2
-Noobyara2579     |           0  0  0 |           3  1  1 |           4  1  2 |           7  1  2 |           7  2  2 |           9  3  3
-Slide620         | Iq        0  0  0 | Montagne  1  1  0 | Iq        1  2  1 | Smoke     1  3  1 | Tachanka  1  4  1 | Tachanka  3  5  1
-SoyWolf8         |           0  0  0 |           0  1  1 |           0  1  2 |           0  1  2 |           2  1  2 |           2  2  2
-mattia_999       | Nomad     0  0  0 | Dokkaebi  1  1  0 | Thermite  2  2  0 | Mira      2  3  0 | Mira      3  4  0 | Mira      4  5  0
+amybulls         |           0  0  0 |           0  1  0 |           0  2  0 |           0  3  0 |           0  4  0 |           0  4  0 |           0  5  0 |           1  6  0 |           1  7  0    
+Jus0599          |           0  0  0 |           2  0  0 |           5  0  1 |           7  1  1 |           7  2  1 |           9  3  1 |           9  4  1 |          12  4  1 |          12  5  1    
+Binnils          |           0  0  0 |           2  1  0 |           3  1  0 |           3  2  0 |           3  3  0 |           3  4  0 |           3  5  0 |           4  5  0 |           7  6  0    
+tfhalo5          |           0  0  0 |           1  0  0 |           1  0  1 |           1  1  1 |           3  2  1 |           4  3  2 |           4  4  2 |           4  4  2 |           4  5  2    
+ievosas          |           0  0  0 |           0  1  0 |           1  1  0 |           1  2  0 |           2  3  0 |           3  3  0 |           3  4  0 |           3  4  0 |           3  5  0    
+NVBEG_STYLX      | Jager     0  0  0 | Tubarao   1  1  0 | Warden    1  2  0 | Ace       2  3  1 | Ace       5  3  1 | Thermite  7  4  1 | Thermite 10  4  1 | Tachanka 10  5  1 | Striker  11  6  1    
+FurryPaws165     | Mira      0  0  0 | Mira      0  1  0 | Wamai     0  2  0 | Jackal    0  2  0 | Buck      0  3  0 | Jackal    0  4  0 | Ace       1  4  1 | Mute      2  5  1 | Jackal    4  6  2    
+Maxim_Marmelado  | Kaid      0  0  0 | Kaid      1  1  0 | Lesion    2  2  0 | Osa       4  2  0 | Fuze      4  3  3 | Ace       4  4  3 | Fuze      4  4  3 | Kaid      4  5  3 | Fuze      4  6  3    
+Y0niZer0         | Castle    0  0  0 | Castle    1  1  0 | Goyo      1  2  0 | Ash       1  3  0 | Ash       3  3  0 | Thatcher  3  4  0 | Ash       3  4  0 | Smoke     3  5  0 | Ash       5  5  0    
+Agafolk          | Kapkan    0  0  0 | Alibi     0  1  0 | Doc       0  2  0 | Glaz      1  2  0 | Lion      1  3  0 | Dokkaebi  2  4  0 | Dokkaebi  3  4  0 | Valkyrie  3  5  0 | Iq        3  6  0    
 ```
+
+(uses ANSI colors for better readability)
