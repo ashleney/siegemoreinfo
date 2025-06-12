@@ -1,18 +1,48 @@
 import datetime
 import heapq
 import json
+import tempfile
 import time
 import typing
 import os
 import re
+import warnings
 from playwright.sync_api import sync_playwright
 
+OVERWOLF_LOG_REGEX = r"(\d+-\d+-\d+ \d+:\d+:\d+,\d+) \((\w+)\) (<.+?> \(.+?\)) - (?:\[(.+?)\] )?(?:(.+?) )?(\{\".+\}|\[[\"\{].+\])"
 OverwolfRawLogType = tuple[str, str, str, str | None, str | None, str]
+
+
+def create_shared_file_descriptor(path: str) -> int:
+    """Creates a shared file descriptor to allow for the siege logs to be deleted while reading from them."""
+    import win32file
+    import msvcrt
+
+    handle = win32file.CreateFile(
+        path,
+        win32file.GENERIC_READ,
+        win32file.FILE_SHARE_DELETE | win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE,
+        None,
+        win32file.OPEN_EXISTING,
+        0,
+        None,
+    )
+
+    return msvcrt.open_osfhandle(handle.Detach(), os.O_RDONLY)  # type: ignore
 
 
 def log_reader(path: str) -> typing.Iterator[OverwolfRawLogType | None]:
     """Yields new events shared by the Overwolf Game Events Service. Only reads events containing JSON."""
-    with open(path, encoding="utf-8") as file:
+    try:
+        handle = create_shared_file_descriptor(path)
+    except ImportError:
+        warnings.warn("pywin32 missing, might break logs due to locking them")
+        handle = path
+    except Exception as e:
+        warnings.warn(f"cannot properly open file, live mode will be unstable: {e!r}")
+        handle = path
+
+    with open(handle, encoding="utf-8") as file:
         while True:
             line = file.readline()
 
@@ -20,7 +50,7 @@ def log_reader(path: str) -> typing.Iterator[OverwolfRawLogType | None]:
                 yield None
                 continue
 
-            match = re.search(r"(\d+-\d+-\d+ \d+:\d+:\d+,\d+) \((\w+)\) (<.+?> \(.+?\)) - (?:\[(.+?)\] )?(?:(.+?) )?(\{\".+\}|\[[\"\{].+\])", line)
+            match = re.search(OVERWOLF_LOG_REGEX, line)
             if not match:
                 continue
 
@@ -36,10 +66,12 @@ def bulk_log_reader(directories: list[str], max_age: int | None = None) -> typin
     iterators: list[tuple[typing.Iterator[OverwolfRawLogType | None], str]] = []
     heap: list[tuple[tuple[str, int], OverwolfRawLogType]] = []
 
+    earliest_allowed_timestamp = max_age and datetime.datetime.fromtimestamp(time.time() - max_age).isoformat(" ")
+
     while True:
         for directory in directories:
             for entry in os.scandir(directory):
-                if entry.path not in seen_files and (max_age is None or time.time() - entry.stat().st_mtime <= max_age):
+                if entry.is_file() and entry.path not in seen_files and (max_age is None or time.time() - entry.stat().st_mtime <= max_age):
                     seen_files.add(entry.path)
                     iterators.append((log_reader(entry.path), entry.path))
 
@@ -48,16 +80,22 @@ def bulk_log_reader(directories: list[str], max_age: int | None = None) -> typin
                 entry = next(it)
                 if entry is None:
                     break
+                if earliest_allowed_timestamp and entry[0] < earliest_allowed_timestamp:
+                    continue
+
                 heapq.heappush(heap, ((entry[0], len(heap)), entry))
 
         if heap:
             _, entry = heapq.heappop(heap)
+            earliest_allowed_timestamp = entry[0]
             yield entry
         else:
             time.sleep(0.01)
 
 
-def get_tracker_played_with(player_ids: typing.Collection[str]) -> dict[str, typing.Any]:
+def get_tracker_played_with(
+    player_ids: typing.Collection[str],
+) -> dict[str, typing.Any]:
     """Fetch the api.tracker.gg endpoint to get info of players this player has played with."""
 
     data: dict[str, typing.Any] = {}
@@ -101,8 +139,12 @@ round_history: dict[str, dict[int, dict[str, str]]] = {}
 current_round = 1
 player_info: dict[str, typing.Any] = {}
 player_colors: dict[str, str] = {}
+roster_to_id: dict[str, str] = {}
 
-directories = [os.path.join(OVERWOLF_APPS_LOG_DIR, "Rainbow 6 Siege Tracker"), os.path.join(OVERWOLF_APPS_LOG_DIR, "Overwolf General GameEvents Provider")]
+directories = [
+    os.path.join(OVERWOLF_APPS_LOG_DIR, "Rainbow 6 Siege Tracker"),
+    os.path.join(OVERWOLF_APPS_LOG_DIR, "Overwolf General GameEvents Provider"),
+]
 for timestamp, _loglevel, _source, log_type, log_text, raw_data in bulk_log_reader(directories, MAX_LOG_AGE):
     print(timestamp, end="\r")
     if timestamp < (datetime.datetime.now() - datetime.timedelta(seconds=MAX_LOG_AGE)).isoformat(sep=" "):
@@ -148,9 +190,18 @@ for timestamp, _loglevel, _source, log_type, log_text, raw_data in bulk_log_read
                 teams = []
                 player_info = {}
                 player_colors = {}
+                roster_to_id = {}
                 continue
 
             round_history.setdefault(event_key, {})[current_round] = value
+
+            for playerid, player in player_info.items():
+                if player["playerPrivacyName"] and value["player"].startswith(player["playerPrivacyName"]):
+                    roster_to_id[event_key] = playerid
+                    break
+                elif player["playerName"] == value["player"]:
+                    roster_to_id[event_key] = playerid
+                    break
 
         if event_key == "round_start_log":
             current_round += 1
@@ -161,41 +212,59 @@ for timestamp, _loglevel, _source, log_type, log_text, raw_data in bulk_log_read
         if not event_key.startswith("roster_") and event_key not in ("player_list_log", "round_start_log"):
             continue
 
-        os.system("cls")
-        print(timestamp)
-        print("\033[1;36m== Players ==\033[0m")
-        for player in sorted(player_info.values(), key=lambda i: player_colors.get(i["playerId"], "90")):
-            print(
-                f"\033[1;{player_colors.get(player['playerId'], '90')}m{f'{player["playerName"]} {f"({player['playerPrivacyName']})" if player["playerPrivacyName"] else ""}':35}\033[0m"
-                f" - \033[1;32m{player['lifetimeStats']['matchesPlayed'] if player.get('lifetimeStats') else 0:>4}\033[0m matches, \033[1;35m{player['lifetimeRankedStats']['bestRank']['name'] if player.get('lifetimeRankedStats') else "None":12}\033[0m"
-                f" {player['playerId']}"
-            )
+        try:
+            print(timestamp)
+            print("\033[1;36m== Players ==\033[0m")
+            for player in sorted(
+                player_info.values(),
+                key=lambda i: player_colors.get(i["playerId"], "90"),
+            ):
+                print(
+                    f"\033[1;{player_colors.get(player['playerId'], '90')}m{f'{player["playerName"]} {f"({player['playerPrivacyName']})" if player["playerPrivacyName"] else ""}':35}\033[0m"
+                    f" - \033[1;32m{player['lifetimeStats']['matchesPlayed'] if player.get('lifetimeStats') else 0:>4}\033[0m matches, \033[1;35m{player['lifetimeRankedStats']['bestRank']['name'] if player.get('lifetimeRankedStats') else 'None':12}\033[0m"
+                    f" {player['playerId']}"
+                )
 
-        print()
-        print("\033[1;36m== Squads ==\033[0m")
-        for team in teams:
-            print(
-                "- "
-                + ", ".join(
-                    (
-                        f"\033[1;{player_colors[player_id]}m{player_info[player_id]['playerPrivacyName'] or player_info[player_id]['playerName']}\033[0m"
-                        if player_id in player_info
-                        else "???"
+            print()
+            print("\033[1;36m== Squads ==\033[0m")
+            for team in teams:
+                print(
+                    "- "
+                    + ", ".join(
+                        (
+                            f"\033[1;{player_colors[player_id]}m{player_info[player_id]['playerPrivacyName'] or player_info[player_id]['playerName']}\033[0m"
+                            if player_id in player_info
+                            else player_id
+                        )
+                        for player_id in team
                     )
-                    for player_id in team
                 )
-            )
 
-        print()
-        print("\033[1;36m== Round history ==\033[0m")
-        for roster_id, player_history in sorted(round_history.items(), key=lambda i: (data[i[0]]["team"], data[i[0]]["score"]), reverse=True):
-            print(
-                f"\033[1;33m{data[roster_id]['player']:16}\033[0m | "
-                + " | ".join(
-                    f"\033[1;36m{round['operator'].title() if round['operator'] != 'NONE' else '':8}\033[0m"
-                    f" \033[1;32m{round['kills']:>2}\033[0m \033[1;31m{round['deaths']:>2}\033[0m \033[1;34m{round['assists']:>2}\033[0m"
-                    if (round := player_history.get(round_num))
-                    else " " * 17
-                    for round_num in range(1, 10)
+            print()
+            print("\033[1;36m== Round history ==\033[0m")
+            for roster_id, player_history in sorted(
+                round_history.items(),
+                key=lambda i: (data[i[0]]["team"], data[i[0]]["score"]),
+                reverse=True,
+            ):
+                print(
+                    f"\033[1;{player_colors.get(roster_to_id.get(roster_id, ''), '90')}m{data[roster_id]['player']:16}\033[0m | "
+                    + " | ".join(
+                        (
+                            f"\033[1;36m{round['operator'].title() if round['operator'] != 'NONE' else '':8}\033[0m"
+                            f" \033[1;32m{round['kills']:>2}\033[0m \033[1;31m{round['deaths']:>2}\033[0m \033[1;34m{round['assists']:>2}\033[0m"
+                            if (round := player_history.get(round_num))
+                            else " " * 17
+                        )
+                        for round_num in range(1, 10)
+                    )
                 )
-            )
+        except Exception as e:
+            print(f"\033[31mError printing to screen: {e!r}\033[0m\r")
+
+        json.dump(
+            {"data": data, "player_info": player_info, "teams": teams},
+            open(f"{tempfile.gettempdir()}/siegemoreinfo_data.json", "w", encoding="utf-8"),
+            indent=4,
+            ensure_ascii=False,
+        )
